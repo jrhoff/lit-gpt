@@ -1277,4 +1277,37 @@ llama_2_function_calling = [
 
 configs.extend(llama_2_function_calling)
 
+##########################
+# AUGMXNT
+##########################
+
+# https://huggingface.co/augmxnt/shisa-base-7b-v1/blob/main/config.json 
+
+
+shisa_common_config = dict(
+        name="dummy",
+        hf_config=dict(org="augmxnt", name="augmxt/{}"),
+        padded_vocab_size=120074,
+        block_size=4096,
+        n_layer=32,
+        intermediate_size=14336,
+        norm_eps=1e-05,
+        n_query_groups=8,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        rope_base=10000.0,
+        _norm_class="RMSNorm",
+        _mlp_class="LLaMAMLP",  
+    )
+
+shisa_model_names = ["shisa-base-7b-v1", "shisa-7b-v1", "shisa-gamma-7b-v1"]
+
+for name in shisa_model_names:
+    _conf = deepcopy(shisa_common_config)
+    _conf["name"] = name
+    _conf["hf_config"]["name"] = _conf["hf_config"]["name"].format(name)
+
+    configs.append(_conf)
+    
 name_to_config = {config["name"]: config for config in configs}
