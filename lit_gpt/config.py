@@ -1280,13 +1280,13 @@ configs.extend(llama_2_function_calling)
 ##########################
 # AUGMXNT
 ##########################
+# Here are a series of Mistral-based models either continually trained on Japanese data.
 
-# https://huggingface.co/augmxnt/shisa-base-7b-v1/blob/main/config.json 
-
-
-shisa_common_config = dict(
-        name="dummy",
-        hf_config=dict(org="augmxnt", name="augmxt/{}"),
+shisa = [
+    # https://huggingface.co/augmxnt/shisa-base-7b-v1/blob/main/config.json 
+    dict(
+        name="shisa-base-7b-v1",
+        hf_config=dict(org="augmxnt", name="augmxt/shisa-base-7b-v1"),
         padded_vocab_size=120074,
         block_size=4096,
         n_layer=32,
@@ -1299,15 +1299,75 @@ shisa_common_config = dict(
         rope_base=10000.0,
         _norm_class="RMSNorm",
         _mlp_class="LLaMAMLP",  
-    )
+    ),
+    # https://huggingface.co/augmxnt/shisa-7b-v1/blob/main/config.json
+    dict(
+        name="shisa-7b-v1",
+        hf_config=dict(org="augmxnt", name="augmxt/shisa-7b-v1"),
+        padded_vocab_size=120128,  # note the slight difference from base model
+        block_size=4096,
+        n_layer=32,
+        intermediate_size=14336,
+        norm_eps=1e-05,
+        n_query_groups=8,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        rope_base=10000.0,
+        _norm_class="RMSNorm",
+        _mlp_class="LLaMAMLP",  
+    ),
+    # Based on https://huggingface.co/stabilityai/japanese-stablelm-base-gamma-7b,
+    # It was further finetuned on Shisa datasets
+    # https://huggingface.co/augmxnt/shisa-gamma-7b-v1/blob/main/config.json
+    dict(
+        name="shisa-gamma-7b-v1",
+        hf_config=dict(org="augmxnt", name="augmxt/shisa-gamma-7b-v1"),
+        padded_vocab_size=32000,
+        block_size=4096, 
+        n_layer=32,
+        n_query_groups=8,
+        rotary_percentage=1.0,
+        parallel_residual=False,
+        bias=False,
+        _norm_class="RMSNorm",
+        norm_eps=1e-05,
+        _mlp_class="LLaMAMLP",
+        intermediate_size=14336,
+        rope_base=10000.0,
+    ),
 
-shisa_model_names = ["shisa-base-7b-v1", "shisa-7b-v1", "shisa-gamma-7b-v1"]
+]
 
-for name in shisa_model_names:
-    _conf = deepcopy(shisa_common_config)
-    _conf["name"] = name
-    _conf["hf_config"]["name"] = _conf["hf_config"]["name"].format(name)
+configs.extend(shisa)
 
-    configs.append(_conf)
+##########################
+# ELYZA
+##########################
+# Here are a series of llama2-chat-based models either continually trained  on Japanese data.
+
+# https://huggingface.co/elyza
+
+
+elyza_7b_config = dict(
+            name="ELYZA-japanese-Llama-2-7b{}",
+            hf_config=dict(org="elyza", name="ELYZA-japanese-Llama-2-7b{}"),
+            vocab_size=32000,
+            n_layer=32,
+            rotary_percentage=1.0,
+            parallel_residual=False,
+            bias=False,
+            _norm_class="RMSNorm",
+            _mlp_class="LLaMAMLP",
+            intermediate_size=11008,
+            norm_eps=1e-06,
+        )
+    
+for kind in ["", "-instruct"]:
+    _config = deepcopy(elyza_7b_config)
+    _config["name"] = _config["name"].format(kind)
+    _config["hf_config"]["name"] = _config["hf_config"]["name"].format(kind)
+    configs.append(_config)
+
     
 name_to_config = {config["name"]: config for config in configs}

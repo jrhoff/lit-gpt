@@ -8,7 +8,7 @@ import torch
 
 
 class Tokenizer:
-    def __init__(self, checkpoint_dir: Union[Path, str]) -> None:
+    def __init__(self, checkpoint_dir: Union[Path, str], ignore_tokenizer_model: bool=False) -> None:
         checkpoint_dir = Path(checkpoint_dir)
         if not checkpoint_dir.exists():
             raise NotADirectoryError(f"The checkpoint directory does not exist: {str(checkpoint_dir)}")
@@ -18,7 +18,7 @@ class Tokenizer:
         self.eos_id = None
 
         # some checkpoints have both files, `.model` takes precedence
-        if (vocabulary_path := checkpoint_dir / "tokenizer.model").is_file():
+        if (vocabulary_path := checkpoint_dir / "tokenizer.model").is_file() and not ignore_tokenizer_model:
             from sentencepiece import SentencePieceProcessor
 
             self.processor = SentencePieceProcessor(model_file=str(vocabulary_path))
