@@ -1353,6 +1353,7 @@ elyza_7b_config = dict(
             name="ELYZA-japanese-Llama-2-7b{}",
             hf_config=dict(org="elyza", name="ELYZA-japanese-Llama-2-7b{}"),
             vocab_size=32000,
+            padded_vocab_size=32000,
             n_layer=32,
             rotary_percentage=1.0,
             parallel_residual=False,
