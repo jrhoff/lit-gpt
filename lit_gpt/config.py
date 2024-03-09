@@ -1416,12 +1416,30 @@ elyza_7b_config = dict(
             intermediate_size=11008,
             norm_eps=1e-06,
         )
-    
-for kind in ["", "-instruct"]:
-    _config = deepcopy(elyza_7b_config)
-    _config["name"] = _config["name"].format(kind)
-    _config["hf_config"]["name"] = _config["hf_config"]["name"].format(kind)
-    configs.append(_config)
+
+elyza_13b_config = dict(
+            name="ELYZA-japanese-Llama-2-13b{}",
+            hf_config=dict(org="elyza", name="ELYZA-japanese-Llama-2-13b{}"),
+            vocab_size=32000,
+            padded_vocab_size=32000,
+            n_layer=40,
+            n_head=40,
+            rotary_percentage=1.0,
+            parallel_residual=False,
+            bias=False,
+            _norm_class="RMSNorm",
+            _mlp_class="LLaMAMLP",
+            intermediate_size=13824,
+            norm_eps=1e-05,
+            block_size=4096,
+            n_embd=5120
+        )
+for base_config in [elyza_7b_config, elyza_13b_config]:
+    for kind in ["", "-instruct"]:
+        _config = deepcopy(base_config)
+        _config["name"] = _config["name"].format(kind)
+        _config["hf_config"]["name"] = _config["hf_config"]["name"].format(kind)
+        configs.append(_config)
 
     
 name_to_config = {config["name"]: config for config in configs}
