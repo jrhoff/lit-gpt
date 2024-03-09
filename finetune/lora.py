@@ -3,8 +3,9 @@
 import os
 import sys
 import time
+import yaml
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 import lightning as L
 import torch
@@ -27,34 +28,36 @@ from lit_gpt.utils import (
     load_checkpoint,
     num_parameters,
 )
-from scripts.prepare_alpaca import generate_prompt
 
-eval_interval = 100
-save_interval = 100
-eval_iters = 100
-eval_max_new_tokens = 100
+eval_interval = 25
+save_interval = 25
+eval_iters = 1_000
 log_interval = 1
 devices = 1
 
 # Hyperparameters
 learning_rate = 3e-4
 batch_size = 128
-micro_batch_size = 4
+micro_batch_size = 2
 gradient_accumulation_iters = batch_size // micro_batch_size
 assert gradient_accumulation_iters > 0
 max_seq_length = None  # assign value to truncate
-max_iters = 50000  # train dataset size
+max_iters = 100_000  # train dataset size
 max_steps = max_iters // gradient_accumulation_iters
 weight_decay = 0.01
 lora_r = 8
 lora_alpha = 16
 lora_dropout = 0.05
-lora_query = True
-lora_key = False
-lora_value = True
-lora_projection = False
-lora_mlp = False
-lora_head = False
+
+lora_layers = {
+    "lora_query": True,
+    "lora_key":False,
+    "lora_value": True,
+    "lora_projection": False,
+    "lora_mlp": False,
+    "lora_head": False
+}
+
 warmup_steps = 100
 
 hparams = {k: v for k, v in locals().items() if isinstance(v, (int, float, str)) and not k.startswith("_")}
@@ -66,8 +69,14 @@ def setup(
     out_dir: Path = Path("out/lora/alpaca"),
     precision: Optional[str] = None,
     quantize: Optional[Literal["bnb.nf4", "bnb.nf4-dq", "bnb.fp4", "bnb.fp4-dq", "bnb.int8-training"]] = None,
+    lora_hparams: Optional[Dict[str, Any]] = None
 ) -> None:
     precision = precision or get_default_supported_precision(training=True)
+    
+    if lora_hparams is not None:
+        for k, v in lora_hparams.items():
+            lora_layers[k] = v
+        
 
     plugins = None
     if quantize is not None and quantize.startswith("bnb."):
@@ -109,20 +118,20 @@ def main(fabric: L.Fabric, data_dir: Path, checkpoint_dir: Path, out_dir: Path) 
 
     train_data = torch.load(data_dir / "train.pt")
     val_data = torch.load(data_dir / "test.pt")
-
-    if not any((lora_query, lora_key, lora_value, lora_projection, lora_mlp, lora_head)):
+    
+    if not any(list(lora_layers.values())):
         fabric.print("Warning: all LoRA layers are disabled!")
     config = Config.from_name(
         name=checkpoint_dir.name,
         r=lora_r,
         alpha=lora_alpha,
         dropout=lora_dropout,
-        to_query=lora_query,
-        to_key=lora_key,
-        to_value=lora_value,
-        to_projection=lora_projection,
-        to_mlp=lora_mlp,
-        to_head=lora_head,
+        to_query=lora_layers["lora_query"],
+        to_key=lora_layers["lora_key"],
+        to_value=lora_layers["lora_value"],
+        to_projection=lora_layers["lora_projection"],
+        to_mlp=lora_layers["lora_mlp"],
+        to_head=lora_layers["lora_head"],
     )
     checkpoint_path = checkpoint_dir / "lit_model.pth"
     fabric.print(f"Loading model {str(checkpoint_path)!r} with {config.__dict__}")
@@ -225,7 +234,7 @@ def train(
             fabric.print(f"step {iter_num}: val loss {val_loss.item():.4f}, val time: {t1 * 1000:.2f}ms")
             fabric.barrier()
         if not is_accumulating and step_count % save_interval == 0:
-            checkpoint_path = out_dir / f"iter-{iter_num:06d}-ckpt.pth"
+            checkpoint_path = out_dir / f"iter-{iter_num:06d}-loss-{val_loss}-ckpt.pth"
             save_lora_checkpoint(fabric, model, checkpoint_path)
 
 
@@ -240,22 +249,6 @@ def validate(fabric: L.Fabric, model: GPT, val_data: List[Dict], tokenizer: Toke
         logits = model(input_ids)
         losses[k] = chunked_cross_entropy(logits[..., :-1, :], targets[..., 1:], chunk_size=0)
     val_loss = losses.mean()
-
-    # produce an example:
-    instruction = "Recommend a movie for me to watch during the weekend and explain the reason."
-    fabric.print(instruction)
-    sample = {"instruction": instruction, "input": ""}
-    prompt = generate_prompt(sample)
-    encoded = tokenizer.encode(prompt, device=fabric.device)
-    with fabric.init_tensor():
-        # do not set `max_seq_length=max_returned_token` because memory is not a concern here
-        model.set_kv_cache(batch_size=1)
-    output = generate(
-        model, encoded, max_returned_tokens=len(encoded) + eval_max_new_tokens, temperature=0.8, eos_id=tokenizer.eos_id
-    )
-    model.clear_kv_cache()
-    output = tokenizer.decode(output)
-    fabric.print(output)
 
     model.train()
     return val_loss
@@ -316,7 +309,8 @@ def save_lora_checkpoint(fabric: L.Fabric, model: torch.nn.Module, file_path: Pa
 
 
 if __name__ == "__main__":
-    torch.set_float32_matmul_precision("high")
+    torch.set_default_dtype(torch.float16)
+    torch.set_float32_matmul_precision("medium")
 
     from jsonargparse import CLI
 
