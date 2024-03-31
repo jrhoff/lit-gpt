@@ -309,8 +309,7 @@ def save_lora_checkpoint(fabric: L.Fabric, model: torch.nn.Module, file_path: Pa
 
 
 if __name__ == "__main__":
-    torch.set_default_dtype(torch.float16)
-    torch.set_float32_matmul_precision("medium")
+    torch.set_float32_matmul_precision("high")
 
     from jsonargparse import CLI
 
